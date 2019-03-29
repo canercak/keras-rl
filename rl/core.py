@@ -170,7 +170,7 @@ class Agent(object):
                 if self.processor is not None:
                     action = self.processor.process_action(action)
                 reward = np.float32(0)
-                accumulated_info = {}
+                final_info = {}
                 done = False
                 for _ in range(action_repetition):
                     callbacks.on_action_begin(action)
@@ -178,12 +178,13 @@ class Agent(object):
                     observation = deepcopy(observation)
                     if self.processor is not None:
                         observation, r, done, info = self.processor.process_step(observation, r, done, info)
-                    for key, value in info.items():
-                        if not np.isreal(value):
-                            continue
-                        if key not in accumulated_info:
-                            accumulated_info[key] = np.zeros_like(value)
-                        accumulated_info[key] += value
+                    final_info = info
+                    # for key, value in info.items():
+                    #     if not np.isreal(value):
+                    #         continue
+                    #     if key not in accumulated_info:
+                    #         accumulated_info[key] = np.zeros_like(value)
+                    #     accumulated_info[key] += value
                     callbacks.on_action_end(action)
                     reward += r
                     if done:
@@ -200,7 +201,7 @@ class Agent(object):
                     'reward': reward,
                     'metrics': metrics,
                     'episode': episode,
-                    'info': accumulated_info,
+                    'info': final_info,
                 }
                 callbacks.on_step_end(episode_step, step_logs)
                 episode_step += 1
@@ -227,6 +228,7 @@ class Agent(object):
                     observation = None
                     episode_step = None
                     episode_reward = None
+                    break
         except KeyboardInterrupt:
             # We catch keyboard interrupts here so that training can be be safely aborted.
             # This is so common that we've built this right into this function, which ensures that
@@ -235,7 +237,7 @@ class Agent(object):
         callbacks.on_train_end(logs={'did_abort': did_abort})
         self._on_train_end()
 
-        return history
+        return final_info
 
     def test(self, env, nb_episodes=1, action_repetition=1, callbacks=None, visualize=True,
              nb_max_episode_steps=None, nb_max_start_steps=0, start_step_policy=None, verbose=1):
@@ -343,7 +345,8 @@ class Agent(object):
                 if self.processor is not None:
                     action = self.processor.process_action(action)
                 reward = 0.
-                accumulated_info = {}
+                # accumulated_info = {}
+                final_info = {}
                 for _ in range(action_repetition):
                     callbacks.on_action_begin(action)
                     observation, r, d, info = env.step(action)
@@ -352,12 +355,13 @@ class Agent(object):
                         observation, r, d, info = self.processor.process_step(observation, r, d, info)
                     callbacks.on_action_end(action)
                     reward += r
-                    for key, value in info.items():
-                        if not np.isreal(value):
-                            continue
-                        if key not in accumulated_info:
-                            accumulated_info[key] = np.zeros_like(value)
-                        accumulated_info[key] += value
+                    final_info = info
+                    # for key, value in info.items():
+                    #     if not np.isreal(value):
+                    #         continue
+                    #     if key not in accumulated_info:
+                    #         accumulated_info[key] = np.zeros_like(value)
+                    #     accumulated_info[key] += value
                     if d:
                         done = True
                         break
@@ -371,7 +375,7 @@ class Agent(object):
                     'observation': observation,
                     'reward': reward,
                     'episode': episode,
-                    'info': accumulated_info,
+                    'info': final_info,
                 }
                 callbacks.on_step_end(episode_step, step_logs)
                 episode_step += 1
@@ -393,8 +397,9 @@ class Agent(object):
             callbacks.on_episode_end(episode, episode_logs)
         callbacks.on_train_end()
         self._on_test_end()
-
-        return history
+        # little tweak
+        final_info['total_reward'] = episode_reward
+        return final_info
 
     def reset_states(self):
         """Resets all internally kept states after an episode is completed.
